@@ -150,6 +150,21 @@ class Settings(BaseSettings):
     proof_of_life_confidence_threshold: float = 0.65
     proof_of_life_min_face_size: int = 80
 
+    # OCR confidence & review threshold settings
+    ocr_confidence_threshold: float = 0.75
+    ocr_confidence_thresholds_by_document_type: Dict[str, float] = Field(
+        default_factory=lambda: {
+            "id_card": 0.85,
+            "passport": 0.85,
+            "national_id": 0.85,
+            "driver_license": 0.80,
+            "receipt": 0.70,
+            "invoice": 0.75,
+            "general": 0.75,
+            "default": 0.75,
+        }
+    )
+
     # Verification artifact access settings
     verification_artifacts_dir: str = "./artifacts/verification"
     verification_artifact_url_ttl_seconds: int = 300
@@ -445,6 +460,34 @@ class Settings(BaseSettings):
                 return True
 
         return False
+
+    def get_ocr_threshold(self, document_type: Optional[str] = None) -> float:
+        """
+        Get the OCR confidence threshold for a specific document type.
+
+        Args:
+            document_type: Optional document type name (case-insensitive)
+
+        Returns:
+            The applicable float threshold in [0.0, 1.0].
+        """
+        if not document_type:
+            return self.ocr_confidence_threshold
+
+        normalized = document_type.strip().lower()
+        if (
+            self.ocr_confidence_thresholds_by_document_type
+            and normalized in self.ocr_confidence_thresholds_by_document_type
+        ):
+            return self.ocr_confidence_thresholds_by_document_type[normalized]
+
+        if (
+            self.ocr_confidence_thresholds_by_document_type
+            and "default" in self.ocr_confidence_thresholds_by_document_type
+        ):
+            return self.ocr_confidence_thresholds_by_document_type["default"]
+
+        return self.ocr_confidence_threshold
 
 
 settings = Settings()

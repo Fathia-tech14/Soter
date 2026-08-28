@@ -52,3 +52,13 @@ class ResultEnvelope(BaseModel, Generic[T]):
         description="Request-scoped correlation ID for distributed tracing.",
         examples=["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
     )
+    requires_review: Optional[bool] = Field(
+        None,
+        description="Flag indicating if the result requires manual human review.",
+        examples=[False],
+    )
+    confidence_banding: Optional[str] = Field(
+        None,
+        description="Confidence classification banding: HIGH, MEDIUM, LOW, UNKNOWN.",
+        examples=["HIGH"],
+    )

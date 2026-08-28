@@ -1,7 +1,8 @@
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image
 
@@ -9,6 +10,13 @@ import metrics
 from config import settings
 from services.preprocessing import ImagePreprocessor
 from services.providers import ProviderRegistry, OCRField, OCRResponse
+
+
+class ConfidenceBanding(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass
@@ -22,6 +30,11 @@ class OCRResult:
     fields: dict[str, FieldMatch]
     raw_text: str
     processing_time_ms: int
+    confidence: Optional[float] = None
+    confidence_banding: str = ConfidenceBanding.UNKNOWN.value
+    requires_review: bool = False
+    review_reasons: List[str] = field(default_factory=list)
+    document_type: Optional[str] = None
 
 
 class FieldDetector:
@@ -82,12 +95,94 @@ class OCRService:
         self.field_detector = FieldDetector()
         self.registry = registry or ProviderRegistry()
 
+    @classmethod
+    def evaluate_confidence(
+        cls,
+        fields: Dict[str, FieldMatch],
+        raw_text: str = "",
+        document_type: Optional[str] = None,
+        threshold: Optional[float] = None,
+    ) -> Tuple[Optional[float], str, bool, List[str]]:
+        """
+        Evaluate aggregate confidence and determine if the extraction requires manual review.
+
+        Args:
+            fields: Detected field matches with individual confidences.
+            raw_text: Full raw text from OCR.
+            document_type: Optional document type name (e.g. 'id_card', 'passport').
+            threshold: Optional explicit threshold override.
+
+        Returns:
+            Tuple of (confidence, confidence_banding, requires_review, review_reasons).
+        """
+        doc_threshold = (
+            threshold
+            if threshold is not None
+            else settings.get_ocr_threshold(document_type)
+        )
+
+        field_confidences = [
+            f.confidence
+            for f in fields.values()
+            if isinstance(f.confidence, (int, float))
+        ]
+
+        if not field_confidences:
+            return (
+                None,
+                ConfidenceBanding.UNKNOWN.value,
+                True,
+                ["Missing confidence score; manual review required"],
+            )
+
+        avg_confidence = round(sum(field_confidences) / len(field_confidences), 4)
+
+        if avg_confidence < doc_threshold:
+            doc_label = f" for document type '{document_type}'" if document_type else ""
+            reason = (
+                f"Confidence {avg_confidence:.4f} is below threshold "
+                f"{doc_threshold:.4f}{doc_label}; manual review required"
+            )
+            return (
+                avg_confidence,
+                ConfidenceBanding.LOW.value,
+                True,
+                [reason],
+            )
+
+        if avg_confidence >= 0.85:
+            banding = ConfidenceBanding.HIGH.value
+        else:
+            banding = ConfidenceBanding.MEDIUM.value
+
+        return (
+            avg_confidence,
+            banding,
+            False,
+            [],
+        )
+
     def process_image(
-        self, image: Image.Image, language_hint: Optional[str] = None
+        self,
+        image: Image.Image,
+        language_hint: Optional[str] = None,
+        document_type: Optional[str] = None,
     ) -> OCRResult:
         providers = self.registry.resolve_ocr()
         if not providers:
-            return OCRResult(fields={}, raw_text="", processing_time_ms=0)
+            conf, banding, req_review, reasons = self.evaluate_confidence(
+                fields={}, raw_text="", document_type=document_type
+            )
+            return OCRResult(
+                fields={},
+                raw_text="",
+                processing_time_ms=0,
+                confidence=conf,
+                confidence_banding=banding,
+                requires_review=req_review,
+                review_reasons=reasons,
+                document_type=document_type,
+            )
 
         for provider_name, provider in providers:
             try:
@@ -104,14 +199,37 @@ class OCRService:
                     response.processing_time_ms / 1000.0
                 )
 
+                conf, banding, req_review, reasons = self.evaluate_confidence(
+                    fields=fields,
+                    raw_text=response.raw_text,
+                    document_type=document_type,
+                )
+
                 return OCRResult(
                     fields=fields,
                     raw_text=response.raw_text,
                     processing_time_ms=response.processing_time_ms,
+                    confidence=conf,
+                    confidence_banding=banding,
+                    requires_review=req_review,
+                    review_reasons=reasons,
+                    document_type=document_type,
                 )
             except NotImplementedError:
                 continue
             except Exception:
                 continue
 
-        return OCRResult(fields={}, raw_text="", processing_time_ms=0)
+        conf, banding, req_review, reasons = self.evaluate_confidence(
+            fields={}, raw_text="", document_type=document_type
+        )
+        return OCRResult(
+            fields={},
+            raw_text="",
+            processing_time_ms=0,
+            confidence=conf,
+            confidence_banding=banding,
+            requires_review=req_review,
+            review_reasons=reasons,
+            document_type=document_type,
+        )

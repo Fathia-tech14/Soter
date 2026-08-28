@@ -17,12 +17,15 @@ def run_ocr_from_bytes(
     contents: bytes,
     anchor_metadata: Optional[str] = None,
     language_hint: Optional[str] = None,
+    document_type: Optional[str] = None,
 ) -> dict:
     start_time = time.time()
     img = Image.open(io.BytesIO(contents))
 
     start_inference = time.time()
-    result = ocr_service.process_image(img, language_hint=language_hint)
+    result = ocr_service.process_image(
+        img, language_hint=language_hint, document_type=document_type
+    )
     inference_latency = time.time() - start_inference
 
     metrics.INFERENCE_LATENCY.labels(task_type="ocr").observe(inference_latency)
@@ -31,17 +34,29 @@ def run_ocr_from_bytes(
     processing_time_ms = int((time.time() - start_time) * 1000)
     parsed_metadata = _parse_anchor_metadata(anchor_metadata)
 
+    ocr_data = OCRData(
+        fields={
+            name: OCRFieldResult(value=field.value, confidence=field.confidence)
+            for name, field in result.fields.items()
+        },
+        raw_text=result.raw_text,
+        processing_time_ms=processing_time_ms,
+        confidence=result.confidence,
+        confidence_banding=result.confidence_banding,
+        requires_review=result.requires_review,
+        review_reasons=result.review_reasons,
+        document_type=result.document_type,
+    )
+
     response = {
         "success": True,
-        "data": OCRData(
-            fields={
-                name: OCRFieldResult(value=field.value, confidence=field.confidence)
-                for name, field in result.fields.items()
-            },
-            raw_text=result.raw_text,
-            processing_time_ms=processing_time_ms,
-        ).model_dump(),
+        "data": ocr_data.model_dump(),
         "processing_time_ms": processing_time_ms,
+        "confidence": result.confidence,
+        "confidence_banding": result.confidence_banding,
+        "requires_review": result.requires_review,
+        "review_reasons": result.review_reasons,
+        "document_type": result.document_type,
         "anchor_metadata": (
             parsed_metadata.model_dump() if parsed_metadata is not None else None
         ),
@@ -53,9 +68,13 @@ def run_ocr_from_base64(
     image_base64: str,
     anchor_metadata: Optional[str] = None,
     language_hint: Optional[str] = None,
+    document_type: Optional[str] = None,
 ) -> dict:
     return run_ocr_from_bytes(
-        base64.b64decode(image_base64), anchor_metadata, language_hint=language_hint
+        base64.b64decode(image_base64),
+        anchor_metadata,
+        language_hint=language_hint,
+        document_type=document_type,
     )
 
 

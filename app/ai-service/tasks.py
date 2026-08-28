@@ -396,14 +396,20 @@ def _process_ocr(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not image_base64:
         raise ValueError("'image_base64' is required for ocr tasks")
 
+    ocr_output = run_ocr_from_base64(
+        image_base64,
+        payload.get("anchor_metadata"),
+        language_hint=payload.get("language_hint"),
+        document_type=payload.get("document_type"),
+    )
+
     return {
         "type": "ocr",
         "status": "success",
-        "result": run_ocr_from_base64(
-            image_base64,
-            payload.get("anchor_metadata"),
-            language_hint=payload.get("language_hint"),
-        ),
+        "result": ocr_output,
+        "requires_review": ocr_output.get("requires_review", False),
+        "confidence": ocr_output.get("confidence"),
+        "confidence_banding": ocr_output.get("confidence_banding"),
     }
 
 
