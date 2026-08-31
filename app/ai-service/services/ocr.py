@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -8,6 +9,10 @@ from PIL import Image
 
 import metrics
 from config import settings
+
+logger = logging.getLogger(__name__)
+from exceptions import ProviderExhaustedError
+from services.circuit_breaker import CircuitBreaker
 from services.preprocessing import ImagePreprocessor
 from services.providers import ProviderRegistry, OCRField, OCRResponse
 
@@ -35,6 +40,7 @@ class OCRResult:
     requires_review: bool = False
     review_reasons: List[str] = field(default_factory=list)
     document_type: Optional[str] = None
+    provider: Optional[str] = None
 
 
 class FieldDetector:
@@ -94,6 +100,16 @@ class OCRService:
         self.preprocessor = ImagePreprocessor()
         self.field_detector = FieldDetector()
         self.registry = registry or ProviderRegistry()
+        self.breakers: Dict[str, CircuitBreaker] = {}
+
+    def _get_breaker(self, provider_name: str) -> CircuitBreaker:
+        if provider_name not in self.breakers:
+            self.breakers[provider_name] = CircuitBreaker(
+                name=provider_name,
+                failure_threshold=settings.circuit_breaker_failure_threshold,
+                recovery_timeout=settings.circuit_breaker_recovery_timeout_seconds,
+            )
+        return self.breakers[provider_name]
 
     @classmethod
     def evaluate_confidence(
@@ -184,7 +200,17 @@ class OCRService:
                 document_type=document_type,
             )
 
+        errors: List[str] = []
         for provider_name, provider in providers:
+            breaker = self._get_breaker(provider_name)
+            if not breaker.allow_request():
+                logger.warning(
+                    "Circuit breaker is OPEN for provider=%s. Skipping.", provider_name
+                )
+                errors.append(
+                    f"provider={provider_name}, error=Circuit breaker is OPEN"
+                )
+                continue
             try:
                 response: OCRResponse = provider.ocr_extract(
                     image, language_hint=language_hint
@@ -199,6 +225,7 @@ class OCRService:
                     response.processing_time_ms / 1000.0
                 )
 
+                breaker.record_success()
                 conf, banding, req_review, reasons = self.evaluate_confidence(
                     fields=fields,
                     raw_text=response.raw_text,
@@ -214,10 +241,15 @@ class OCRService:
                     requires_review=req_review,
                     review_reasons=reasons,
                     document_type=document_type,
+                    provider=provider_name,
                 )
             except NotImplementedError:
                 continue
-            except Exception:
+            except Exception as exc:
+                breaker.record_failure()
+                err = f"provider={provider_name}, error={exc}"
+                errors.append(err)
+                logger.warning("OCR attempt failed: %s", err)
                 continue
 
         conf, banding, req_review, reasons = self.evaluate_confidence(
