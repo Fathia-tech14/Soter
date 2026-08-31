@@ -63,7 +63,7 @@ export const SettingsScreen: React.FC = () => {
   const { t } = useTranslation();
   const { locale, isOverridden, deviceLocale, setActiveLocale } = useLanguage();
   const { biometricEnabled, biometricSupported, toggleBiometric } = useBiometric();
-  const { permissionGranted, requestPermission } = useNotification();
+  const { permissionGranted, requestPermission, tokenRegistered } = useNotification();
   const {
     active: saverModeActive,
     source: saverModeSource,
@@ -332,6 +332,11 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.rowSubtitle}>
               Receive updates for claim and verification status changes
             </Text>
+            {permissionGranted && (
+              <Text style={[styles.rowSubtitle, { color: tokenRegistered ? colors.text.secondary : colors.error }]}>
+                {tokenRegistered ? 'Registered with backend' : 'Backend registration failed'}
+              </Text>
+            )}
           </View>
           <Switch
             value={permissionGranted}
