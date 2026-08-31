@@ -56,6 +56,13 @@ def _log_decision(result: ClaimFraudResult, pass_max: float, review_max: float) 
     )
 
 
+#: Version of the fraud scoring rules. Fraud detection is statistical rather
+#: than prompt-driven, so this constant plays the "prompt version" role in the
+#: decision audit record (issue #990): bump it whenever the feature set or the
+#: outlier threshold changes, so historical scores stay explainable.
+FRAUD_RULES_VERSION = "fraud-lof-v1"
+
+
 def _vectorize(claims: List[ClaimMetadata]) -> np.ndarray:
     """Convert claim metadata into a numeric feature matrix."""
     ip_enc = LabelEncoder()
