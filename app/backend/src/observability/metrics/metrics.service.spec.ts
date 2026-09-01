@@ -45,6 +45,9 @@ const ALL_METRIC_NAMES = [
   'entity_link_review_decisions_total',
   'entity_link_review_duration_seconds',
   'api_key_rate_limit_rejections_total',
+  'idempotency_keys_purged_total',
+  'idempotency_purge_executions_total',
+  'idempotency_purge_failures_total',
 ];
 
 const stubMetric = () => ({
