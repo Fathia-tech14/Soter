@@ -3,10 +3,10 @@ name: CI - Python Tests
 on:
   push:
     paths:
-      - 'app/ai-service/**'
+      - 'app/ai-service/*'
   pull_request:
     paths:
-      - 'app/ai-service/**'
+      - 'app/ai-service/*'
 
 jobs:
   test:
@@ -24,7 +24,7 @@ jobs:
         working-directory: app/ai-service
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r9 requirements.txt; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest pytest-cov
 
       - name: Run tests
