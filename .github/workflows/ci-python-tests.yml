@@ -2,11 +2,9 @@ name: CI - Python Tests
 
 on:
   push:
-    paths:
-      - 'app/ai-service/*'
+    paths:      - 'app/ai-service/**'
   pull_request:
-    paths:
-      - 'app/ai-service/*'
+    paths:      - 'app/ai-service/**'
 
 jobs:
   test:
