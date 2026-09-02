@@ -1,7 +1,11 @@
 import pytest
 
 from config import settings
-from exceptions import ProviderExhaustedError
+from exceptions import (
+    ProviderExhaustedError,
+    MalformedProviderOutputError,
+    ProviderRefusalError,
+)
 from services.circuit_breaker import CircuitBreaker
 from services.humanitarian_verification import HumanitarianVerificationService
 from services.providers import (
