@@ -31,6 +31,7 @@ class ResultEnvelope(BaseModel, Generic[T]):
     trace_id        Request-scoped correlation ID echoed from the
                     X-Correlation-Id / X-Request-Id header for distributed
                     tracing.
+    prompt_version  Version of the prompt template used for verification/inference.
     """
 
     result: T
@@ -51,4 +52,9 @@ class ResultEnvelope(BaseModel, Generic[T]):
         None,
         description="Request-scoped correlation ID for distributed tracing.",
         examples=["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+    )
+    prompt_version: Optional[str] = Field(
+        None,
+        description="Version of the prompt template used for verification.",
+        examples=["v1"],
     )

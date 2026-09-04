@@ -50,6 +50,11 @@ class HumanitarianVerificationRequest(BaseModel):
         "Used to key the response cache so it can be explicitly invalidated when an artifact is updated.",
         examples=[["artifact_abc123"]],
     )
+    prompt_version: Optional[str] = Field(
+        default=None,
+        description="Explicit prompt version to use from registry (defaults to configured active version)",
+        examples=["v1"],
+    )
     anchor_metadata: Optional[AnchorMetadata] = None
 
     model_config = {
@@ -64,6 +69,7 @@ class HumanitarianVerificationRequest(BaseModel):
                     },
                     "provider_preference": "auto",
                     "timeout": 30.0,
+                    "prompt_version": "v1",
                     "anchor_metadata": {
                         "campaign_ref": "campaign-2024-001",
                         "claim_id": "claim-abc123",
@@ -78,7 +84,9 @@ class HumanitarianVerificationResponse(BaseModel):
     success: bool = Field(examples=[True])
     provider: Optional[str] = Field(None, examples=["test"])
     model: Optional[str] = Field(None, examples=["gpt-4o"])
-    prompt_variant: Optional[str] = Field(None, examples=["v1"])
+    prompt_variant: Optional[str] = Field(None, examples=["primary"])
+    prompt_name: Optional[str] = Field(None, examples=["humanitarian_primary"])
+    prompt_version: Optional[str] = Field(None, examples=["v1"])
     verification: Optional[Dict[str, Any]] = Field(
         None,
         examples=[

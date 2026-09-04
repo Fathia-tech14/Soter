@@ -539,6 +539,7 @@ def _process_humanitarian_verification(payload: Dict[str, Any]) -> Dict[str, Any
         supporting_evidence=data.get("supporting_evidence", []),
         context_factors=data.get("context_factors", {}),
         provider_preference=data.get("provider_preference", "auto"),
+        prompt_version=data.get("prompt_version"),
     )
 
     return {

@@ -1,4 +1,4 @@
-"""Humanitarian claim verification service with model/provider fallbacks."""
+"""Humanitarian claim verification service with model/provider fallbacks and prompt versioning."""
 
 import json
 import logging
@@ -15,7 +15,11 @@ from exceptions import (
     ProviderRefusalError,
 )
 from schemas.humanitarian import LLMVerificationPayload
-from services.humanitarian_prompt import HumanitarianPromptEngine
+from services.humanitarian_prompt import (
+    HumanitarianPromptEngine,
+    default_prompt_registry,
+)
+from services.prompt_registry import PromptRegistry
 from services.circuit_breaker import CircuitBreaker
 from services.providers import ProviderRegistry, ModelProvider, LLMResponse
 
@@ -48,12 +52,34 @@ _REFUSAL_MARKERS: Tuple[str, ...] = (
 
 
 class HumanitarianVerificationService:
-    """Runs humanitarian verification against configured LLM providers."""
+    """Runs humanitarian verification against configured LLM providers with versioned prompts."""
 
-    def __init__(self, registry: Optional[ProviderRegistry] = None):
-        self.prompt_engine = HumanitarianPromptEngine()
+    def __init__(
+        self,
+        registry: Optional[ProviderRegistry] = None,
+        prompt_registry: Optional[PromptRegistry] = None,
+    ):
+        self.prompt_registry = prompt_registry or default_prompt_registry
+        self._apply_settings_prompt_versions()
+        self.prompt_engine = HumanitarianPromptEngine(registry=self.prompt_registry)
         self.registry = registry or ProviderRegistry()
         self.breakers: Dict[str, CircuitBreaker] = {}
+
+    def _apply_settings_prompt_versions(self) -> None:
+        """Apply active prompt versions configured in settings if registered."""
+        if hasattr(settings, "humanitarian_primary_prompt_version"):
+            primary_v = settings.humanitarian_primary_prompt_version
+            if self.prompt_registry.has("humanitarian_primary", primary_v):
+                self.prompt_registry.set_active_version(
+                    "humanitarian_primary", primary_v
+                )
+
+        if hasattr(settings, "humanitarian_fallback_prompt_version"):
+            fallback_v = settings.humanitarian_fallback_prompt_version
+            if self.prompt_registry.has("humanitarian_fallback", fallback_v):
+                self.prompt_registry.set_active_version(
+                    "humanitarian_fallback", fallback_v
+                )
 
     def _get_breaker(self, provider_name: str) -> CircuitBreaker:
         if provider_name not in self.breakers:
@@ -71,18 +97,37 @@ class HumanitarianVerificationService:
         context_factors: Optional[Dict[str, Any]] = None,
         provider_preference: str = "auto",
         timeout: Optional[float] = None,
+        prompt_version: Optional[str] = None,
+        primary_prompt_version: Optional[str] = None,
+        fallback_prompt_version: Optional[str] = None,
     ) -> Dict[str, Any]:
         start_time = time.time()
         try:
             evidence = supporting_evidence or []
             context = context_factors or {}
 
-            primary_prompt = self.prompt_engine.build_primary_prompt(
+            # Resolve primary and fallback prompt templates from registry
+            pri_ver = primary_prompt_version or prompt_version
+            primary_prompt_obj = self.prompt_registry.get(
+                "humanitarian_primary", version=pri_ver
+            )
+            primary_prompt = primary_prompt_obj.build_prompt(
                 aid_claim=aid_claim,
                 supporting_evidence=evidence,
                 context_factors=context,
             )
-            fallback_prompt = self.prompt_engine.build_fallback_prompt(
+
+            fb_ver = fallback_prompt_version
+            if (
+                fb_ver is None
+                and prompt_version
+                and self.prompt_registry.has("humanitarian_fallback", prompt_version)
+            ):
+                fb_ver = prompt_version
+            fallback_prompt_obj = self.prompt_registry.get(
+                "humanitarian_fallback", version=fb_ver
+            )
+            fallback_prompt = fallback_prompt_obj.build_prompt(
                 aid_claim=aid_claim,
                 supporting_evidence=evidence,
                 context_factors=context,
@@ -109,16 +154,17 @@ class HumanitarianVerificationService:
                     continue
 
                 model = self._get_model_for_provider(provider_name)
-                for prompt_variant, prompt in (
-                    ("primary", primary_prompt),
-                    ("fallback", fallback_prompt),
+                for prompt_variant, prompt_obj, prompt in (
+                    ("primary", primary_prompt_obj, primary_prompt),
+                    ("fallback", fallback_prompt_obj, fallback_prompt),
                 ):
                     try:
                         logger.info(
-                            "Attempting humanitarian verification with provider=%s model=%s prompt=%s",
+                            "Attempting humanitarian verification with provider=%s model=%s prompt=%s version=%s",
                             provider_name,
                             model,
                             prompt_variant,
+                            prompt_obj.version,
                         )
                         parsed, response = self._call_and_validate(
                             provider=provider,
@@ -139,6 +185,8 @@ class HumanitarianVerificationService:
                             "provider": provider_name,
                             "model": model,
                             "prompt_variant": prompt_variant,
+                            "prompt_name": prompt_obj.name,
+                            "prompt_version": prompt_obj.version,
                             "verification": parsed,
                             "raw_response": response.content,
                         }
@@ -155,7 +203,7 @@ class HumanitarianVerificationService:
                         )
                     except Exception as exc:
                         breaker.record_failure()
-                        err = f"provider={provider_name}, model={model}, prompt={prompt_variant}, error={exc}"
+                        err = f"provider={provider_name}, model={model}, prompt={prompt_variant}, version={prompt_obj.version}, error={exc}"
                         errors.append(err)
                         logger.warning(
                             "Humanitarian verification attempt failed: %s", err
@@ -187,6 +235,10 @@ class HumanitarianVerificationService:
         provider_name = providers[0][0]
         model = self._get_model_for_provider(provider_name)
         return f"{provider_name}:{model}"
+
+    def get_prompt_version(self, prompt_name: str = "humanitarian_primary") -> str:
+        """Return the active version string for the given prompt name."""
+        return self.prompt_registry.get_active_version(prompt_name)
 
     def _get_model_for_provider(self, provider: str) -> str:
         if provider == "test":

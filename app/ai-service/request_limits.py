@@ -9,7 +9,6 @@ from fastapi.responses import JSONResponse
 import metrics
 from config import settings
 
-
 _LIMITED_PATH_PREFIXES = ("/v1/", "/ai/")
 
 

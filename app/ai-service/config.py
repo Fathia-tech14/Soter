@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     ai_deterministic_mode: bool = False
     test_provider_mode: bool = False
     llm_timeout_seconds: int = 30
+    humanitarian_primary_prompt_version: str = "v1"
+    humanitarian_fallback_prompt_version: str = "v1"
 
     # Per-model USD cost per 1,000 tokens (issue #981), keyed by the exact
     # model string passed to the provider (e.g. OPENAI_MODEL/GROQ_MODEL).

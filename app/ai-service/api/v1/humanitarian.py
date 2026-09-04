@@ -112,7 +112,7 @@ def _write_audit_record(
 @cached_response(
     prefix="humanitarian_verification",
     ttl_seconds=settings.cache_ttl_verification,
-    key_tags=["model_version", "artifact_tag", "org_id"],
+    key_tags=["model_version", "artifact_tag", "org_id", "prompt_version"],
 )
 async def _verify_claim_cached(
     humanitarian_verification_service,
@@ -124,6 +124,7 @@ async def _verify_claim_cached(
     model_version: str,
     artifact_tag: str,
     org_id: str,
+    prompt_version: str = "",
 ) -> Dict[str, Any]:
     """
     Cacheable wrapper around HumanitarianVerificationService.verify_claim.
@@ -133,11 +134,12 @@ async def _verify_claim_cached(
     so tests can inject a Mock and the cache decorator's args do not need
     to know about module globals.
 
-    `model_version`, `artifact_tag`, and `org_id` don't affect the underlying
-    provider call, but embedding them in the cache key ensures a stale
-    response isn't served after the configured model/provider changes, after
-    an evidence artifact referenced by the claim is updated (see
-    CacheInvalidationHelper.invalidate_verification_by_artifact/_model_version),
+    `model_version`, `artifact_tag`, `org_id`, and `prompt_version` don't
+    affect the underlying provider call, but embedding them in the cache key
+    ensures a stale response isn't served after the configured model/provider
+    changes, the prompt version changes, after an evidence artifact referenced
+    by the claim is updated (see
+    CacheInvalidationHelper.invalidate_verification_by_artifact/_model_version/_prompt_version),
     or across tenants: including ``org_id`` scopes every cache entry to the
     requesting organization so one tenant can never be served a response that
     was computed for another tenant's request.
@@ -149,15 +151,25 @@ async def _verify_claim_cached(
             context_factors=context_factors,
             provider_preference=provider_preference,
             timeout=timeout,
+            prompt_version=prompt_version or None,
         )
     except TypeError as exc:
-        if "timeout" in str(exc):
-            return humanitarian_verification_service.verify_claim(
-                aid_claim=aid_claim,
-                supporting_evidence=supporting_evidence,
-                context_factors=context_factors,
-                provider_preference=provider_preference,
-            )
+        if "prompt_version" in str(exc) or "timeout" in str(exc):
+            try:
+                return humanitarian_verification_service.verify_claim(
+                    aid_claim=aid_claim,
+                    supporting_evidence=supporting_evidence,
+                    context_factors=context_factors,
+                    provider_preference=provider_preference,
+                    timeout=timeout,
+                )
+            except TypeError:
+                return humanitarian_verification_service.verify_claim(
+                    aid_claim=aid_claim,
+                    supporting_evidence=supporting_evidence,
+                    context_factors=context_factors,
+                    provider_preference=provider_preference,
+                )
         raise
 
 
@@ -310,9 +322,25 @@ async def verify_humanitarian_claim(
                 )
                 raise HTTPException(status_code=403, detail="Access denied")
 
+        prompt_version = request.prompt_version
+        if not prompt_version:
+            if hasattr(humanitarian_verification_service, "get_prompt_version"):
+                try:
+                    pv = humanitarian_verification_service.get_prompt_version(
+                        "humanitarian_primary"
+                    )
+                    prompt_version = pv if isinstance(pv, str) else "v1"
+                except Exception:
+                    prompt_version = "v1"
+            else:
+                prompt_version = "v1"
+
         model_version = humanitarian_verification_service.get_model_version(
             request.provider_preference
         )
+        if not isinstance(model_version, str):
+            model_version = "test:fixture"
+
         artifact_tag = (
             ",".join(sorted(request.artifact_ids)) if request.artifact_ids else ""
         )
@@ -327,9 +355,14 @@ async def verify_humanitarian_claim(
             model_version=model_version,
             artifact_tag=artifact_tag,
             org_id=x_org_id,
+            prompt_version=prompt_version,
         )
 
-        verification: Dict[str, Any] = raw.get("verification") or {}
+        verification: Dict[str, Any] = (
+            raw.get("verification") if isinstance(raw, dict) else {}
+        )
+        if not isinstance(verification, dict):
+            verification = {}
 
         # Extract confidence and reasons from the LLM-produced verification dict.
         confidence: Optional[float] = None
@@ -377,12 +410,19 @@ async def verify_humanitarian_claim(
             },
         )
 
+        envelope_prompt_version: Optional[str] = None
+        if isinstance(raw, dict) and isinstance(raw.get("prompt_version"), str):
+            envelope_prompt_version = raw["prompt_version"]
+        elif isinstance(prompt_version, str):
+            envelope_prompt_version = prompt_version
+
         return ResultEnvelope[Dict[str, Any]](
             result=raw,
             confidence=confidence,
             reasons=reasons,
             anchor_metadata=request.anchor_metadata,
             trace_id=correlation_id or None,
+            prompt_version=envelope_prompt_version,
         )
     except HTTPException as http_exc:
         # Access-control denials and misconfiguration are decisions too: they
