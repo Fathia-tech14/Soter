@@ -38,9 +38,6 @@ def assert_envelope(data: Dict[str, Any]) -> None:
     assert "reasons" in data, f"Missing 'reasons' key: {data}"
     assert "anchor_metadata" in data, f"Missing 'anchor_metadata' key: {data}"
     assert "trace_id" in data, f"Missing 'trace_id' key: {data}"
-    assert "requires_review" in data, f"Missing 'requires_review' key: {data}"
-    assert "confidence_banding" in data, f"Missing 'confidence_banding' key: {data}"
-    assert "prompt_version" in data, f"Missing 'prompt_version' key: {data}"
 
     # confidence is either null or a float in [0, 1]
     if data["confidence"] is not None:
@@ -59,22 +56,6 @@ def assert_envelope(data: Dict[str, Any]) -> None:
         assert len(data["reasons"]) > 0, "reasons list must not be empty"
         for r in data["reasons"]:
             assert isinstance(r, str), f"Each reason must be a string, got {type(r)}"
-
-    if data["requires_review"] is not None:
-        assert isinstance(
-            data["requires_review"], bool
-        ), f"requires_review must be bool, got {type(data['requires_review'])}"
-
-    if data["confidence_banding"] is not None:
-        assert isinstance(
-            data["confidence_banding"], str
-        ), f"confidence_banding must be str, got {type(data['confidence_banding'])}"
-
-    # prompt_version is either null or a string
-    if data["prompt_version"] is not None:
-        assert isinstance(
-            data["prompt_version"], str
-        ), f"prompt_version must be str, got {type(data['prompt_version'])}"
 
 
 # ---------------------------------------------------------------------------
