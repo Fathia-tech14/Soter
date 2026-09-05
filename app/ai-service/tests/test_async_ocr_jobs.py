@@ -69,7 +69,7 @@ def test_queued_ocr_job_rejects_invalid_image(client, monkeypatch):
     )
 
     assert response.status_code == 400
-    assert response.json()["error"]['message"].startsith("{'code': 'invalid_image'")
+    assert response.json()["error"]["code"] == "invalid_image"
     create_task.assert_not_called()
 
 
