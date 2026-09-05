@@ -350,26 +350,7 @@ class TestCachedResponseDecorator:
             "artifact_tag": "artifact-123",
             "model_version": "openai:gpt-4o-mini",
         }
-        mock_cache.set.assert_called_once()version"]
-        )
-        async def test_func(aid_claim, artifact_tag, model_version):
-            return "result"
-
-        with patch("main.app") as mock_app:
-            mock_app.state.cache = mock_cache
-            asyncio.run(
-                test_func(
-                    aid_claim="claim",
-                    artifact_tag="artifact-1",
-                    model_version="openai:gpt-4o-mini",
-                )
-            )
-
-        _, call_kwargs = mock_cache._generate_key.call_args
-        assert call_kwargs["tags"] == {
-            "artifact_tag": "artifact-1",
-            "model_version": "openai:gpt-4o-mini",
-        }
+        mock_cache.set.assert_called_once()
 
     def test_cached_response_without_key_tags_passes_no_tags(self):
         """Existing decorated functions with no key_tags shouldn't get a tags dict"""
