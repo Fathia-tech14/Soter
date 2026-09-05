@@ -242,7 +242,9 @@ class Settings(BaseSettings):
             self.request_rate_limit = "5/minute"
             self.ai_deterministic_mode = True
             if not (
-                self.openai_api_key or self.groq_api_key or self.test_provider_mode
+                self.openai_api_key
+                or self.groq_api_key
+                or "test_provider_mode" in self.model_fields_set
             ):
                 self.test_provider_mode = True
 
@@ -250,7 +252,9 @@ class Settings(BaseSettings):
             self.request_rate_limit = "5/minute"
             self.ai_deterministic_mode = True
             if not (
-                self.openai_api_key or self.groq_api_key or self.test_provider_mode
+                self.openai_api_key
+                or self.groq_api_key
+                or "test_provider_mode" in self.model_fields_set
             ):
                 self.test_provider_mode = True
 
