@@ -334,7 +334,23 @@ class TestCachedResponseDecorator:
         mock_cache._generate_key = Mock(return_value="test_key")
 
         @cached_response(
-            prefix="test", ttl_seconds=60, key_tags=["artifact_tag", "model_version"]
+            prefix="test", ttl_seconds=60, key_tags=["artifact_tag", "model_version"])
+        async def test_func(artifact_tag, model_version):
+            return "result"
+
+        with patch("main.app") as mock_app:
+            mock_app.state.cache = mock_cache
+            result = asyncio.run(
+                test_func(artifact_tag="artifact-123", model_version="openai:gpt-4o-mini")
+            )
+
+        assert result == "result"
+        call_args = mock_cache._generate_key.call_args
+        assert call_args[1]["tags"] == {
+            "artifact_tag": "artifact-123",
+            "model_version": "openai:gpt-4o-mini",
+        }
+        mock_cache.set.assert_called_once()version"]
         )
         async def test_func(aid_claim, artifact_tag, model_version):
             return "result"
