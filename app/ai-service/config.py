@@ -635,6 +635,19 @@ class Settings(BaseSettings):
 
         return self.ocr_confidence_threshold
 
+    def should_route_to_manual_review(
+        self, confidence: float, document_type: Optional[str] = None
+    ) -> bool:
+        """Return whether an OCR result should be routed to manual review.
+
+        Manual review routing is active only when configured and the detected
+        confidence is below the applicable document-type threshold.
+        """
+        return bool(
+            self.ocr_manual_review_enabled
+            and confidence < self.get_ocr_threshold(document_type)
+        )
+
 
 settings = Settings()
 
