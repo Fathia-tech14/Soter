@@ -209,7 +209,7 @@ class TestOCRService:
         self, mock_labels, monkeypatch
     ):
         mock_observe = MagicMock()
-        mock_labels.return_value.observe = mock_observe
+        mock_labels.return_value.observe = mock_observeabels.return_value.observe = mock_observe
 
         stub_response = OCRResponse(
             fields={
