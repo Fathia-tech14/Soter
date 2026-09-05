@@ -217,6 +217,11 @@ class Settings(BaseSettings):
         }
     )
 
+    # OCR manual review routing (issue #984). When enabled, OCR results whose
+    # confidence is below the applicable document-type threshold are routed to
+    # manual review instead of being accepted/rejected automatically.
+    ocr_manual_review_enabled: bool = True
+
     # Verification artifact access settings
     verification_artifacts_dir: str = "./artifacts/verification"
     verification_artifact_url_ttl_seconds: int = 300
@@ -378,6 +383,18 @@ class Settings(BaseSettings):
                 "PROOF_OF_LIFE_CONFIDENCE_THRESHOLD",
                 f"must be between 0.0 and 1.0 (got {self.proof_of_life_confidence_threshold})",
             )
+        # --- OCR confidence thresholds ------------------------------------
+        if not 0.0 <= self.ocr_confidence_threshold <= 1.0:
+            _add(
+                "OCR_CONFIDENCE_THRESHOLD",
+                f"must be between 0.0 and 1.0 (got {self.ocr_confidence_threshold})",
+            )
+        for _doc_type, _threshold in self.ocr_confidence_thresholds_by_document_type.items():
+            if not 0.0 <= _threshold <= 1.0:
+                _add(
+                    f"OCR_CONFIDENCE_THRESHOLDS_BY_DOCUMENT_TYPE[{_doc_type}]",
+                    f"must be between 0.0 and 1.0 (got {_threshold})",
+                )
         if not 1 <= int(self.port) <= 65535:
             _add("PORT", f"must be between 1 and 65535 (got {self.port})")
 
