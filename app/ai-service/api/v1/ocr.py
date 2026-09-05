@@ -98,6 +98,13 @@ async def process_ocr(
         ocr_data = (
             OCRData(**raw["data"]) if isinstance(raw["data"], dict) else raw["data"]
         )
+        low_confidence = (ocr_data.confidence_banding or "").lower() == "low"
+        if low_confidence:
+            ocr_data.requires_review = True
+            review_reasons = list(ocr_data.review_reasons or [])
+            if "low_confidence" not in review_reasons:
+                review_reasons.append("low_confidence")
+            ocr_data.review_reasons = review_reasons
 
         return ResultEnvelope[OCRData](
             result=ocr_data,
