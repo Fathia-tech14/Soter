@@ -170,6 +170,7 @@ class TestOCREnvelope:
         with patch("api.v1.ocr.run_ocr_from_bytes", return_value=fake_low_ocr):
             resp = client.post("/v1/ai/ocr", files=data).json()
 
+        assert_envelope(resp)
         assert resp["requires_review"] is True
         assert resp["confidence_banding"] == "LOW"
         assert resp["reasons"] == ["Confidence 0.5000 is below threshold 0.7500"]
