@@ -118,7 +118,7 @@ class OCRService:
         document_type: Optional[str] = None,
         threshold: Optional[float] = None,
     ) -> Tuple[Optional[float], str, bool, List[str]]:
-        """
+        '''
         Evaluate aggregate confidence and determine if the extraction requires manual review.
 
         Args:
@@ -129,7 +129,7 @@ class OCRService:
 
         Returns:
             Tuple of (confidence, confidence_banding, requires_review, review_reasons).
-        """
+        '''
         doc_threshold = (
             threshold
             if threshold is not None
