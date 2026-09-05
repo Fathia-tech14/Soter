@@ -81,6 +81,24 @@ class Settings(BaseSettings):
     ai_deterministic_mode: bool = False
     test_provider_mode: bool = False
     llm_timeout_seconds: int = 30
+    humanitarian_primary_prompt_version: str = "v1"
+    humanitarian_fallback_prompt_version: str = "v1"
+
+    # Per-model USD cost per 1,000 tokens (issue #981), keyed by the exact
+    # model string passed to the provider (e.g. OPENAI_MODEL/GROQ_MODEL).
+    # Used to derive an estimated cost metric from captured token counts;
+    # a model missing from this table simply has no cost estimated for it
+    # (not a fabricated 0) — see metrics.estimate_llm_cost_usd. Defaults are
+    # illustrative list-price approximations as of this writing, not a
+    # billing guarantee; operators should override via
+    # LLM_MODEL_COST_PER_1K_TOKENS (a JSON object) to match their actual
+    # negotiated/current provider pricing.
+    llm_model_cost_per_1k_tokens: Dict[str, Dict[str, float]] = Field(
+        default_factory=lambda: {
+            "gpt-4o-mini": {"prompt": 0.00015, "completion": 0.0006},
+            "llama-3.3-70b-versatile": {"prompt": 0.00059, "completion": 0.00079},
+        }
+    )
 
     # Request safety limits
     max_request_body_bytes: int = 10 * 1024 * 1024
@@ -128,6 +146,16 @@ class Settings(BaseSettings):
     dead_letter_max_replay_attempts: int = 5
     dead_letter_replay_cooldown_seconds: float = 10.0
     dead_letter_replay_rate_limit: str = "10/minute"
+
+    # Decision audit settings (issue #990)
+    # Every verification/fraud decision is written to a durable, redacted
+    # audit record so a disbursement decision can be reconstructed later.
+    # See DECISION_AUDIT.md for the record shape and retention guidance.
+    decision_audit_enabled: bool = True
+    decision_audit_path: str = "./audit/decision_audit.jsonl"
+    # Records older than this are dropped by the retention sweep. Set to 0 to
+    # keep audit records forever (the compliance-archive configuration).
+    decision_audit_retention_days: float = 90.0
 
     # Cache TTL settings (in seconds)
     cache_ttl_task_status: int = 30  # Short TTL for responsive polling
@@ -328,6 +356,18 @@ class Settings(BaseSettings):
             if value <= 0:
                 _add(key, f"must be a positive number (got {value})")
 
+        # --- Decision audit retention (issue #990) -----------------------
+        # 0 is a valid, documented value meaning "retain forever", so this
+        # setting is checked for non-negativity rather than positivity.
+        if self.decision_audit_retention_days < 0:
+            _add(
+                "DECISION_AUDIT_RETENTION_DAYS",
+                "must be 0 (retain forever) or a positive number of days "
+                f"(got {self.decision_audit_retention_days})",
+            )
+        if self.decision_audit_enabled and not str(self.decision_audit_path).strip():
+            _add("DECISION_AUDIT_PATH", "must not be blank when auditing is enabled")
+
         # --- Bounded numeric settings ------------------------------------
         if not 0.0 <= self.proof_of_life_confidence_threshold <= 1.0:
             _add(
@@ -383,6 +423,21 @@ class Settings(BaseSettings):
                 validate_fallback_order(key, order)
             except ValueError as exc:
                 _add(key, str(exc))
+
+        # --- Per-model LLM cost rates --------------------------------------
+        for model_name, rates in self.llm_model_cost_per_1k_tokens.items():
+            for direction in ("prompt", "completion"):
+                rate = rates.get(direction)
+                if rate is None:
+                    _add(
+                        "LLM_MODEL_COST_PER_1K_TOKENS",
+                        f"model '{model_name}' is missing a '{direction}' rate",
+                    )
+                elif rate < 0:
+                    _add(
+                        "LLM_MODEL_COST_PER_1K_TOKENS",
+                        f"model '{model_name}' has a negative '{direction}' rate",
+                    )
 
         # --- Production requirements (defense in depth) ------------------
         # apply_environment_defaults already rejects this at construction

@@ -40,6 +40,7 @@ def assert_envelope(data: Dict[str, Any]) -> None:
     assert "trace_id" in data, f"Missing 'trace_id' key: {data}"
     assert "requires_review" in data, f"Missing 'requires_review' key: {data}"
     assert "confidence_banding" in data, f"Missing 'confidence_banding' key: {data}"
+    assert "prompt_version" in data, f"Missing 'prompt_version' key: {data}"
 
     # confidence is either null or a float in [0, 1]
     if data["confidence"] is not None:
@@ -68,6 +69,12 @@ def assert_envelope(data: Dict[str, Any]) -> None:
         assert isinstance(
             data["confidence_banding"], str
         ), f"confidence_banding must be str, got {type(data['confidence_banding'])}"
+
+    # prompt_version is either null or a string
+    if data["prompt_version"] is not None:
+        assert isinstance(
+            data["prompt_version"], str
+        ), f"prompt_version must be str, got {type(data['prompt_version'])}"
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +384,8 @@ class TestHumanitarianEnvelope:
         "provider": "test",
         "model": "test-provider/fixture",
         "prompt_variant": "primary",
+        "prompt_name": "humanitarian_primary",
+        "prompt_version": "v1",
         "verification": {
             "verdict": "credible",
             "confidence": 0.82,
@@ -401,6 +410,17 @@ class TestHumanitarianEnvelope:
             resp = client.post("/v1/ai/humanitarian/verify", json=self._REQUEST)
         assert resp.status_code == 200
         assert_envelope(resp.json())
+
+    def test_prompt_version_recorded_on_envelope(self):
+        with patch.object(
+            main.humanitarian_verification_service,
+            "verify_claim",
+            return_value=self._FAKE_VERIFY,
+        ):
+            data = client.post("/v1/ai/humanitarian/verify", json=self._REQUEST).json()
+        assert data["prompt_version"] == "v1"
+        assert data["result"]["prompt_version"] == "v1"
+        assert data["result"]["prompt_name"] == "humanitarian_primary"
 
     def test_confidence_extracted_from_verification(self):
         with patch.object(

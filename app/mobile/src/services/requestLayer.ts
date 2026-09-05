@@ -11,6 +11,7 @@ import { config } from '../config';
 import { structuredLogger } from './logger';
 
 const API_URL = config.apiUrl;
+const API_KEY = config.apiKey;
 
 // ── Configuration ────────────────────────────────────────────────────────
 
@@ -114,6 +115,9 @@ export async function apiRequest<T = unknown>(
   };
   if (effectiveIdempotencyKey) {
     baseHeaders['Idempotency-Key'] = effectiveIdempotencyKey;
+  }
+  if (API_KEY) {
+    baseHeaders['x-api-key'] = API_KEY;
   }
 
   let lastError: Error | null = null;
