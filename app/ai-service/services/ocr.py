@@ -1,20 +1,19 @@
 import logging
 import re
-import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PIL import Image
 
 import metrics
 from config import settings
-
-logger = logging.getLogger(__name__)
 from exceptions import ProviderExhaustedError
 from services.circuit_breaker import CircuitBreaker
 from services.preprocessing import ImagePreprocessor
-from services.providers import ProviderRegistry, OCRField, OCRResponse
+from services.providers import ProviderRegistry, OCRResponse
+
+logger = logging.getLogger(__name__)
 
 
 class ConfidenceBanding(str, Enum):
