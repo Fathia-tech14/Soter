@@ -1,5 +1,4 @@
 import pytest
-from dataclasses import dataclass
 from config import settings
 from services.ocr import (
     FieldDetector,
