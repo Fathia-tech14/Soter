@@ -308,10 +308,15 @@ class TestOCRService:
     def test_process_image_empty_image(self, monkeypatch):
         from PIL import Image
 
-        # Use the fixture provider so the test does not depend on a real OCR
-        # engine being available; it still exercises the degenerate-image path
-        # through the full service without exhausting providers.
-        monkeypatch.setattr(settings, "test_provider_mode", True)
+        monkeypatch.setattr(settings, "test_provider_mode", False)
+
+        stub_response = OCRResponse(
+            fields={}, raw_text="", processing_time_ms=0, provider="stub"
+        )
+        stub_provider = StubOCRProvider(stub_response)
+        mock_registry = MagicMock(spec=ProviderRegistry)
+        mock_registry.resolve_ocr.return_value = [("stub", stub_provider)]
+        monkeypatch.setattr(self.ocr, "registry", mock_registry)
 
         img = Image.new("RGB", (0, 0), color="white")
         result = self.ocr.process_image(img)
@@ -387,6 +392,8 @@ class TestOCRService:
 
         mock_observe = MagicMock()
         mock_labels.return_value.observe = mock_observe
+
+        monkeypatch.setattr(settings, "test_provider_mode", False)
 
         failing = StubOCRProvider(RuntimeError("ocr boom"))
         mock_registry = MagicMock(spec=ProviderRegistry)
