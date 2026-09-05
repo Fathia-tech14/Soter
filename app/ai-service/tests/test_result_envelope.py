@@ -155,6 +155,8 @@ class TestOCREnvelope:
         assert resp["requires_review"] is True
         assert resp["confidence_banding"] == "LOW"
         assert resp["reasons"] == ["Confidence 0.5000 is below threshold 0.7500"]
+        assert resp["result"]["requires_review"] is True
+        assert resp["result"]["review_reasons"] == ["Confidence 0.5000 is below threshold 0.7500"]
 
     def test_confidence_derived_from_field_scores(self):
         data = self._post_ocr()
