@@ -412,6 +412,7 @@ def _process_ocr(payload: Dict[str, Any]) -> Dict[str, Any]:
     requires_review = bool(ocr_output.get("requires_review", False))
     if confidence_banding == "LOW":
         requires_review = True
+        ocr_output["requires_review"] = True
 
     return {
         "type": "ocr",
