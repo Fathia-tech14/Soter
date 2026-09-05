@@ -1,7 +1,7 @@
 import base64
 import io
 import time
-from typing Import Optional
+from typing import Optional
 
 from PIL import Image
 
