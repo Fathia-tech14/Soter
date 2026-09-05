@@ -69,7 +69,7 @@ def test_queued_ocr_job_rejects_invalid_image(client, monkeypatch):
     )
 
     assert response.status_code == 400
-    assert response.json()["error"]["message"].startswith("{'code': 'invalid_image'")
+    assert response.json()["error"]['message"].startsith("{'code': 'invalid_image'")
     create_task.assert_not_called()
 
 
@@ -116,9 +116,9 @@ def test_batch_ocr_returns_document_statuses_for_mixed_inputs(client, monkeypatc
         "/v1/ai/ocr/batch",
         data={"document_type": "id_card"},
         files=[
-            ("files", ("doc-a.png", _png_bytes(), "image/png")),
-            ("files", ("doc-b.png", b"not-a-real-image", "image/png")),
-            ("files", ("doc-c.png", _png_bytes(), "image/png")),
+            ("files", "doc-a.png", _png_bytes(), "image/png"),
+            ("files", "doc-b.png", b"not-a-real-image", "image/png"),
+            ("files", "doc-c.png", _png_bytes(), "image/png"),
         ],
     )
 
