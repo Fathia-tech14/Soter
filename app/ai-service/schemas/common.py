@@ -6,7 +6,7 @@ T = TypeVar("T")
 class AnchorMetadata(BaseModel):
     campaign_ref: Optional[str] = Field(None, examples=["campaign-2024-001"])
     claim_id: Optional[str] = Field(None, examples=["claim-abc123"])
-    package_id: Optional[str] = Field(None, examples=["package-x7y8z9"])
+    package_id: Optional[str] = Field(None, examples=["packagex7y8z9"])
 
     model_config = {
         "json_schema_extra": {
@@ -22,14 +22,14 @@ class ResultEnvelope(BaseModel, Generic[T]):
     Standardized success-path envelope returned by all AI inference endpoints.
 
     Fields
-    -----
+    ----
     result              The endpoint-specific payload (type varies by endpoint).
     confidence          Aggregate confidence score in [0, 1], when meaningful.
     reasons             Human-readable list of reasons / explanations.
     anchor_metadata     Pass-through of the caller-supplied correlation metadata.
     trace_id            Request-scoped correlation ID echoed from the
-                        XCorrelation-Id / X-Request-Id header for distributed
-                        tracing.
+                    XCorrelation-Id / X-Request-Id header for distributed
+                    tracing.
     prompt_version      Version of the prompt template used for
                         verification/inference.
     requires_review     Flag indicating if the result requires manual human
