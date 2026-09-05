@@ -186,6 +186,17 @@ class OCRService:
     ) -> OCRResult:
         providers = self.registry.resolve_ocr()
         if not providers:
+            raise ProviderExhaustedError("No OCR providers available")
+
+        errors: List[str] = []
+        if (
+            image is None
+            or image.width == 0
+            or image.height == 0
+            or image.getbbox() is None
+            or image.convert("L").getextrema()[0]
+            == image.convert("L").getextrema()[1]
+        ):
             conf, banding, req_review, reasons = self.evaluate_confidence(
                 fields={}, raw_text="", document_type=document_type
             )
@@ -200,7 +211,6 @@ class OCRService:
                 document_type=document_type,
             )
 
-        errors: List[str] = []
         for provider_name, provider in providers:
             breaker = self._get_breaker(provider_name)
             if not breaker.allow_request():
@@ -252,16 +262,4 @@ class OCRService:
                 logger.warning("OCR attempt failed: %s", err)
                 continue
 
-        conf, banding, req_review, reasons = self.evaluate_confidence(
-            fields={}, raw_text="", document_type=document_type
-        )
-        return OCRResult(
-            fields={},
-            raw_text="",
-            processing_time_ms=0,
-            confidence=conf,
-            confidence_banding=banding,
-            requires_review=req_review,
-            review_reasons=reasons,
-            document_type=document_type,
-        )
+        raise ProviderExhaustedError("All OCR providers failed")
