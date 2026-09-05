@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, validator
 
 import tasks
-from exceptions import LoadShedError
+from exceptions import LoadShedError, ProviderExhaustedError
 from services.cache import cached_response
 from config import settings
 
@@ -170,6 +170,8 @@ async def create_inference_task(
         }
 
     except LoadShedError:
+        raise
+    except ProviderExhaustedError:
         raise
     except Exception as e:
         logger.error(f"Failed to create inference task: {str(e)}")
