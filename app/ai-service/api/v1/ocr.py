@@ -20,6 +20,7 @@ from schemas.ocr import BatchOCRDocumentStatus, BatchOCRResponse, OCRData, Langu
 from schemas.common import ResultEnvelope
 from services.ocr_job import run_ocr_from_bytes
 from config import settings
+from exceptions import ProviderExhaustedError
 
 router = APIRouter(tags=["ocr"])
 limiter = Limiter(key_func=get_remote_address)
@@ -109,6 +110,8 @@ async def process_ocr(
         )
 
     except HTTPException:
+        raise
+    except ProviderExhaustedError:
         raise
     except Exception as e:
         processing_time_ms = int((time.time() - start_time) * 1000)
